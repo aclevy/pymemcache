@@ -15,6 +15,7 @@
 import collections
 import errno
 import json
+import six
 import socket
 import unittest
 import pytest
@@ -755,6 +756,33 @@ class TestPrefixedPooledClient(TestPrefixedClient):
         client = PooledClient(None, key_prefix=b'xyz:', **kwargs)
         client.client_pool = pool.ObjectPool(lambda: mock_client)
         return client
+
+
+class TestKeyNormalizingClient(ClientTestMixin, unittest.TestCase):
+    @staticmethod
+    def normalize_key(key):
+        if isinstance(key, six.text_type):
+            return key.replace(u' ', six.text_type())
+        else:
+            return key.replace(b' ', six.binary_type())
+
+    def make_client(self, mock_socket_values, **kwargs):
+        client = Client(None, key_normalizer=self.normalize_key, **kwargs)
+        client.sock = MockSocket(list(mock_socket_values))
+        return client
+
+    def test_normalizing_keys(self):
+        client = self.make_client([
+            b'STORED\r\n',
+            b'VALUE keywithspaces 0 5\r\nvalue\r\nEND\r\n',
+        ])
+        result = client.set(b'key with spaces', b'value', noreply=False)
+        result = client.get(b'key with spaces')
+        assert result == b'value'
+        assert client.sock.send_bufs == [
+            b'set keywithspaces 0 0 5\r\nvalue\r\n',
+            b'get keywithspaces\r\n',
+        ]
 
 
 @pytest.mark.unit()

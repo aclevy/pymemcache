@@ -105,6 +105,11 @@ class Client(object):
      already implemented serializers, including one that is compatible with
      the python-memcache library.
 
+    *Key Normalization*
+
+     The constructor takes an optional function for converting keys prior to
+     storage or retrieval, for the purposes of sanitization or obfuscation.
+
     *Serialization and Deserialization*
 
      The constructor takes two optional functions, one for "serialization" of
@@ -162,7 +167,8 @@ class Client(object):
                  ignore_exc=False,
                  socket_module=socket,
                  key_prefix=b'',
-                 default_noreply=True):
+                 default_noreply=True,
+                 key_normalizer=None):
         """
         Constructor.
 
@@ -188,6 +194,7 @@ class Client(object):
           default_noreply: bool, the default value for 'noreply' as passed to
             store commands (except from cas, incr, and decr, which default to
             False).
+          key_normalizer: optional function, see notes in the class docs.
 
         Notes:
           The constructor does not make a connection to memcached. The first
@@ -208,9 +215,12 @@ class Client(object):
             raise TypeError("key_prefix should be bytes.")
         self.key_prefix = key_prefix
         self.default_noreply = default_noreply
+        self.key_normalizer = key_normalizer
 
     def check_key(self, key):
         """Checks key and add key_prefix."""
+        if self.key_normalizer:
+            key = self.key_normalizer(key)
         return _check_key(key, key_prefix=self.key_prefix)
 
     def _connect(self):
@@ -818,7 +828,8 @@ class PooledClient(object):
                  socket_module=socket,
                  key_prefix=b'',
                  max_pool_size=None,
-                 lock_generator=None):
+                 lock_generator=None,
+                 key_normalizer=None):
         self.server = server
         self.serializer = serializer
         self.deserializer = deserializer
@@ -832,6 +843,7 @@ class PooledClient(object):
         if not isinstance(key_prefix, bytes):
             raise TypeError("key_prefix should be bytes.")
         self.key_prefix = key_prefix
+        self.key_normalizer = key_normalizer
         self.client_pool = pool.ObjectPool(
             self._create_client,
             after_remove=lambda client: client.close(),
@@ -853,7 +865,8 @@ class PooledClient(object):
                         # can remove/destroy it from the pool...
                         ignore_exc=False,
                         socket_module=self.socket_module,
-                        key_prefix=self.key_prefix)
+                        key_prefix=self.key_prefix,
+                        key_normalizer=self.key_normalizer)
         return client
 
     def close(self):

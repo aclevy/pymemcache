@@ -30,6 +30,7 @@ class HashClient(object):
         dead_timeout=60,
         use_pooling=False,
         ignore_exc=False,
+        key_normalizer=None,
     ):
         """
         Constructor.
@@ -78,6 +79,7 @@ class HashClient(object):
             'no_delay': no_delay,
             'socket_module': socket_module,
             'key_prefix': key_prefix,
+            'key_normalizer': key_normalizer,
             'serializer': serializer,
             'deserializer': deserializer,
         }
